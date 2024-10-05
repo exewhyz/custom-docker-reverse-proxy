@@ -1,0 +1,24 @@
+services:
+  reverse-proxy-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: npm run dev
+    develop:
+      watch:
+        - path: /package.json
+          action: rebuild
+        - path: /package.lock.json
+          action: rebuild
+        - path: /Dockerfile.dev
+          action: rebuild
+        - path: .
+          action: sync
+          target: ./app
+    ports:
+      - "8080:8080"
+      - "80:80"
+    network_mode: bridge
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # - .:/app

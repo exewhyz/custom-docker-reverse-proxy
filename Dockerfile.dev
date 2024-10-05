@@ -1,0 +1,12 @@
+FROM node:alpine3.10
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies including nodemon
+RUN npm install
+
+# Copy source files
+COPY . .
