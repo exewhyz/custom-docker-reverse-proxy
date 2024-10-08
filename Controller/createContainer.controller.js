@@ -8,7 +8,7 @@ const containerStatuses = new Map();
 const containerEvents = new EventEmitter();
 
 export const createContainer = async (req, res) => {
-  const { image, tag = "latest", customContainerName = null } = req.body;
+  const { name = null, image, tag = "latest" } = req.body;
   const img = `${image}:${tag}`;
 
   const requestId = Date.now().toString();
@@ -24,7 +24,7 @@ export const createContainer = async (req, res) => {
     statusEndpoint: `/containers/status/${requestId}`,
   });
 
-  processContainerCreation(customContainerName, img, requestId);
+  processContainerCreation(name, img, requestId);
 };
 
 export const containerStatus = (req, res) => {

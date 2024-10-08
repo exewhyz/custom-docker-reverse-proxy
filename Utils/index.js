@@ -1,3 +1,3 @@
 export const logError = (message, error) => {
-  console.error(`${message}: error.message`);
+  console.error(`Error ---> ${message}: ${error}`);
 };

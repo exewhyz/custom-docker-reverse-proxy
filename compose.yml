@@ -1,0 +1,44 @@
+version: "3.8"
+services:
+  mongo:
+    container_name: ${MONGODB_HOST}
+    image: mongo:latest
+    ports:
+      - 64000:27017
+    volumes:
+      - mongo_data:/data/db
+    # networks:
+    #   - proxy-net
+    network_mode: bridge
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
+    restart: unless-stopped
+
+  reverse-proxy-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    command: npm run dev
+    depends_on:
+      - mongo
+    environment:
+      - NODE_ENV=production
+      - MONGO_URI=mongodb://${MONGODB_USERNAME}:${MONGODB_PASSWORD}@${MONGODB_HOST}:${MONGODB_PORT}/{MONGODB_DATABASE}?authSource=admin
+    ports:
+      - "8080:8080"
+      - "80:80"
+    links:
+      - mongo
+    network_mode: bridge
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/app
+
+volumes:
+  mongo_data:
+
+# networks:
+#   proxy-net:
+#     driver: bridge
