@@ -1,8 +1,9 @@
 import express from "express";
 import httpProxy from "http-proxy";
 // import { db } from "./docker.service.js";
-import { Container } from "../Models/index.js";
 import { logError } from "../Utils/index.js";
+import { validateContainer } from "./docker.service.js";
+import { PROTOCOL } from "../Config/index.js";
 
 const proxy = httpProxy.createProxy({});
 
@@ -16,25 +17,29 @@ reverseProxyApp.use(async (req, res) => {
   //   return res.status(404).send("Container not found");
   // }
 
-  const container = await Container.findOne({
-    containerName: subDomain,
-  });
-
-  if (!container) {
-    return res.status(404).send("Container not found");
-  }
-
-  const { ipAddress, defaultPort } = container;
-  // const { ipAddress, defaultPort } = db.get(subDomain);
-  const target = `http://${ipAddress}:${defaultPort}`;
-  console.log("IPADD", ipAddress);
-
   try {
+    const container = await validateContainer(subDomain);
+
+    if (!container) {
+      return res.status(404).send("Container not found");
+    }
+
+    const { ipAddress, defaultPort } = container;
+
+    // const { ipAddress, defaultPort } = db.get(subDomain);
+    const target = `${PROTOCOL}://${ipAddress}:${defaultPort}`;
+
     proxy.web(req, res, { target, changeOrigin: true, ws: true });
+
+    console.log(`Forwarding ${PROTOCOL}://${hostname} --> ${target}`);
   } catch (error) {
-    logError("Error Forwarding request to server ", error);
+    logError("Error while finding container inside reverse proxy", error);
+    res
+      .status(404)
+      .send(
+        "Error while finding container inside reverse proxy: " + error.message
+      );
   }
-  console.log(`Forwarding http://${hostname} --> ${target}`);
 });
 
 reverseProxyApp.on("upgrade", async (req, socket, head) => {
@@ -45,18 +50,15 @@ reverseProxyApp.on("upgrade", async (req, socket, head) => {
   //   socket.destroy();
   //   return;
   // }
-  const container = await Container.findOne({
-    containerName: subDomain,
-  });
+  const container = await validateContainer(subDomain);
   if (!container) {
     socket.destroy();
     return;
   }
-  console.log(container);
 
   const { ipAddress, defaultPort } = container;
   // const { ipAddress, defaultPort } = db.get(subDomain);
-  const target = `http://${ipAddress}:${defaultPort}`;
+  const target = `${PROTOCOL}://${ipAddress}:${defaultPort}`;
 
   proxy.ws(req, socket, head, { target, ws: true });
   console.log(`Forwarding ws://${hostname} --> ${target}`);

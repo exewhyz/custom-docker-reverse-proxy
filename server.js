@@ -1,81 +1,83 @@
 import { createServer } from "http";
 import express from "express";
+import dotenv from "dotenv";
 import managementApiRouter from "./Routes/management.route.js";
 import { reverseProxyApp } from "./Services/reverseProxy.service.js";
-import { MANAGEMENT_API_PORT, REVERSE_PROXY_PORT } from "./Config/index.js";
 import { logError } from "./Utils/index.js";
+
 import {
   initializeDockerEventListener,
   initializeExistingContainers,
+  startStoppedRemovedContainers,
 } from "./Services/docker.service.js";
-import dotenv from "dotenv";
+import {
+  DOMAIN,
+  MANAGEMENT_API_PORT,
+  PROTOCOL,
+  REVERSE_PROXY_PORT,
+} from "./Config/index.js";
 import { connectToDatabase, closeDbConnection } from "./Config/db.js";
 
 dotenv.config();
 
-const startServer = async () => {
-  try {
-    // Connect to the database
-    await connectToDatabase();
+// Connect to the database
+connectToDatabase();
 
-    // Initialize Docker event listener
-    // await initializeExistingContainers();
-    initializeDockerEventListener();
+// Initialize Docker event listener
+initializeDockerEventListener();
 
-    const managementApiApp = express();
+// Initialize Docker event listener
+initializeExistingContainers();
 
-    // Use JSON middleware for request bodies
-    managementApiApp.use(express.json());
+// Start any stopped or removed containers from the database
+startStoppedRemovedContainers();
 
-    // Root route for Management Server
-    managementApiApp.get("/", (_, res) => {
-      res.status(200).json({ success: true, message: "Healthy" });
-    });
+const managementApiApp = express();
 
-    // Mount Management API routes
-    managementApiApp.use("/api/management", managementApiRouter);
+// Use JSON middleware for request bodies
+managementApiApp.use(express.json());
 
-    // Create http server instance for management api app
-    const managementServer = createServer(managementApiApp);
+// Root route for Management Server
+managementApiApp.get("/", (_, res) => {
+  res.status(200).json({ success: true, message: "Healthy" });
+});
 
-    // Start Management API server
-    managementServer.listen(MANAGEMENT_API_PORT, (err) => {
-      if (err) {
-        logError("Error starting Management API", err);
-      } else {
-        console.log(
-          `Management API is running at http://localhost:${MANAGEMENT_API_PORT}`
-        );
-      }
-    });
+// Mount Management API routes
+managementApiApp.use("/api/management", managementApiRouter);
 
-    // Create http server instance for reverse proxy app
-    const reverseProxyServer = createServer(reverseProxyApp);
+// Create http server instance for management api app
+const managementServer = createServer(managementApiApp);
 
-    // Start listening for connections on the reverse proxy server
-    reverseProxyServer.listen(REVERSE_PROXY_PORT, (err) => {
-      if (err) {
-        logError("Error starting Reverse Proxy", err);
-      } else {
-        console.log(
-          `Reverse Proxy is running at http://localhost:${REVERSE_PROXY_PORT}`
-        );
-      }
-    });
-
-    // Graceful shutdown
-    process.on("SIGTERM", () => {
-      console.log("SIGTERM signal received: closing HTTP servers");
-      reverseProxyServer.close(() =>
-        console.log("Reverse Proxy server closed")
-      );
-      managementServer.close(() => console.log("Management API server closed"));
-      closeDbConnection();
-    });
-  } catch (error) {
-    logError("Failed to start the server", error);
-    process.exit(1);
+// Start Management API server
+managementServer.listen(MANAGEMENT_API_PORT, (err) => {
+  if (err) {
+    logError("Error starting Management API", err);
+  } else {
+    console.log(
+      `Management API is running at ${PROTOCOL}://${DOMAIN}:${MANAGEMENT_API_PORT}`
+    );
   }
-};
+});
 
-startServer();
+// Create http server instance for reverse proxy app
+const reverseProxyServer = createServer(reverseProxyApp);
+
+// Start listening for connections on the reverse proxy server
+reverseProxyServer.listen(REVERSE_PROXY_PORT, (err) => {
+  if (err) {
+    logError("Error starting Reverse Proxy", err);
+  } else {
+    console.log(
+      `Reverse Proxy is running at ${PROTOCOL}://${DOMAIN}:${REVERSE_PROXY_PORT}`
+    );
+  }
+});
+
+// Graceful shutdown
+process.on("SIGTERM", () => {
+  console.log("SIGTERM signal received: closing HTTP servers");
+  reverseProxyServer.close(() => console.log("Reverse Proxy server closed"));
+  managementServer.close(() => console.log("Management API server closed"));
+  closeDbConnection();
+  process.exit(0);
+});

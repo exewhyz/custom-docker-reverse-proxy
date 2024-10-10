@@ -7,9 +7,8 @@ services:
       - 64000:27017
     volumes:
       - mongo_data:/data/db
-    # networks:
-    #   - proxy-net
-    network_mode: bridge
+    networks:
+      - db-net
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
@@ -20,17 +19,18 @@ services:
       context: .
       dockerfile: Dockerfile.prod
     command: npm run dev
+    environment:
+      # - NODE_ENV=production
+      - MONGO_URI=mongodb://${MONGODB_USERNAME}:${MONGODB_PASSWORD}@${MONGODB_HOST}:${MONGODB_PORT}/${MONGODB_DATABASE}?authSource=admin
+    ports:
+      - "${MANAGEMENT_API_PORT}:8080"
+      - "${REVERSE_PROXY_PORT}:80"
     depends_on:
       - mongo
-    environment:
-      - NODE_ENV=production
-      - MONGO_URI=mongodb://${MONGODB_USERNAME}:${MONGODB_PASSWORD}@${MONGODB_HOST}:${MONGODB_PORT}/{MONGODB_DATABASE}?authSource=admin
-    ports:
-      - "8080:8080"
-      - "80:80"
-    links:
-      - mongo
-    network_mode: bridge
+    networks:
+      - proxy-net
+      - db-net
+      - proxied-net
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -39,6 +39,10 @@ services:
 volumes:
   mongo_data:
 
-# networks:
-#   proxy-net:
-#     driver: bridge
+networks:
+  proxy-net:
+    driver: bridge
+  db-net:
+    driver: bridge
+  proxied-net:
+    driver: bridge
