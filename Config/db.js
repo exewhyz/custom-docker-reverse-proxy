@@ -3,24 +3,14 @@ import mongoose from "mongoose";
 import { logError } from "../Utils/index.js";
 import { MONGO_URI } from "./index.js";
 
-export const connectToDatabase = () => {
-  // try {
-  //   await mongoose.connect(MONGO_URI);
-  //   console.log("Connected to MongoDB");
-  // } catch (error) {
-  //   logError("MongoDB connection unsuccessful", error);
-  //   setTimeout(connectToDatabase, 5 * 1000);
-  // }
-
-  mongoose
-    .connect(MONGO_URI)
-    .then(() => {
-      console.log("Connected to MongoDB");
-    })
-    .catch((error) => {
-      logError("MongoDB connection unsuccessful", error);
-      setTimeout(connectToDatabase, 5 * 1000);
-    });
+export const connectToDatabase = async () => {
+  try {
+    await mongoose.connect(MONGO_URI);
+    console.log("Connected to MongoDB");
+  } catch (error) {
+    logError("MongoDB connection unsuccessful", error);
+    setTimeout(connectToDatabase, 5 * 1000);
+  }
 };
 
 export const closeDbConnection = () => {

@@ -1,4 +1,7 @@
-import { DOMAIN, PROTOCOL, REVERSE_PROXY_PORT } from "../Config/index.js";
+import {
+  PROXIED_SERVER_NETWORK_NAME,
+  REVERSE_PROXY_PORT,
+} from "../Config/index.js";
 import { docker } from "../Services/docker.service.js";
 import { logError } from "../Utils/index.js";
 import { EventEmitter } from "events";
@@ -95,7 +98,7 @@ export async function processContainerCreation(
     },
     NetworkingConfig: {
       EndpointsConfig: {
-        ["custom-docker-reverse-proxy_proxied-net"]: {},
+        [PROXIED_SERVER_NETWORK_NAME]: {},
       },
     },
   };
@@ -157,7 +160,6 @@ export async function processContainerCreation(
         container = docker.getContainer(customContainerName);
       }
     }
-
     if (container) {
       const containerInfo = await container.inspect();
       const containerName = containerInfo.Name.startsWith("/")
@@ -169,13 +171,13 @@ export async function processContainerCreation(
       }
 
       console.log(
-        `${containerName} started on ${PROTOCOL}://${containerName}.${DOMAIN}:${REVERSE_PROXY_PORT}/`
+        `${containerName} started on http://${containerName}.localhost:${REVERSE_PROXY_PORT}/`
       );
 
       requestId &&
         updateStatus(requestId, {
           status: "running",
-          message: `Container ${containerName} started on ${PROTOCOL}://${containerName}.${DOMAIN}:${REVERSE_PROXY_PORT}/`,
+          message: `Container ${containerName} started on http://${containerName}.localhost:${REVERSE_PROXY_PORT}/`,
 
           containerId: containerInfo.Id,
           containerName: containerName,

@@ -10,18 +10,15 @@ import {
   initializeExistingContainers,
   startStoppedRemovedContainers,
 } from "./Services/docker.service.js";
-import {
-  DOMAIN,
-  MANAGEMENT_API_PORT,
-  PROTOCOL,
-  REVERSE_PROXY_PORT,
-} from "./Config/index.js";
+
+import { MANAGEMENT_API_PORT, REVERSE_PROXY_PORT } from "./Config/index.js";
+
 import { connectToDatabase, closeDbConnection } from "./Config/db.js";
 
 dotenv.config();
 
 // Connect to the database
-connectToDatabase();
+await connectToDatabase();
 
 // Initialize Docker event listener
 initializeDockerEventListener();
@@ -54,7 +51,7 @@ managementServer.listen(MANAGEMENT_API_PORT, (err) => {
     logError("Error starting Management API", err);
   } else {
     console.log(
-      `Management API is running at ${PROTOCOL}://${DOMAIN}:${MANAGEMENT_API_PORT}`
+      `Management API is running at http://localhost:${MANAGEMENT_API_PORT}`
     );
   }
 });
@@ -68,7 +65,7 @@ reverseProxyServer.listen(REVERSE_PROXY_PORT, (err) => {
     logError("Error starting Reverse Proxy", err);
   } else {
     console.log(
-      `Reverse Proxy is running at ${PROTOCOL}://${DOMAIN}:${REVERSE_PROXY_PORT}`
+      `Reverse Proxy is running at http://localhost:${REVERSE_PROXY_PORT}`
     );
   }
 });

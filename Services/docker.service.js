@@ -25,7 +25,7 @@
 //     }
 
 //     console.log(
-//       `Registering ${PROTOCOL}://${containerName}.${DOMAIN}:${REVERSE_PROXY_PORT} --> ${PROTOCOL}://${ipAddress}:${defaultPort}`
+//       `Registering http://${containerName}.localhost:${REVERSE_PROXY_PORT} --> http://${ipAddress}:${defaultPort}`
 //     );
 //     await Container.findOrCreate({
 //       containerName,
@@ -62,7 +62,12 @@
 // };
 
 import Docker from "dockerode";
-import { DOCKER_SOCKET_PATH, DOMAIN, PROTOCOL, REVERSE_PROXY_PORT } from "../Config/index.js";
+import {
+  DOCKER_SOCKET_PATH,
+  PROXIED_SERVER_NETWORK_NAME,
+  REVERSE_PROXY_PORT,
+  REVERSE_PROXY_SERVER_NAME,
+} from "../Config/index.js";
 import { logError } from "../Utils/index.js";
 import { Container } from "../Models/Container.model.js";
 import { processContainerCreation } from "../Controller/container.controller.js";
@@ -129,7 +134,7 @@ export const registerContainer = async (containerId) => {
     }
 
     console.log(
-      `Registering ${PROTOCOL}://${containerName}.${DOMAIN}:${REVERSE_PROXY_PORT} --> ${PROTOCOL}://${ipAddress}:${defaultPort}`
+      `Registering http://${containerName}.localhost:${REVERSE_PROXY_PORT} --> http://${ipAddress}:${defaultPort}`
     );
 
     await Container.findOneAndUpdate(
@@ -175,7 +180,7 @@ export async function validateContainer(subDomain) {
           await containerData.start();
 
           console.log(
-            `Container ${containerName} started successfully on ${PROTOCOL}://${containerName}.${DOMAIN}:${REVERSE_PROXY_PORT}/`
+            `Container ${containerName} started successfully on http://${containerName}.localhost:${REVERSE_PROXY_PORT}/`
           );
 
           try {
@@ -203,9 +208,25 @@ export async function validateContainer(subDomain) {
           `No Container(${containerName}) found and Creating Container(${containerName})`
         );
         try {
-          // create that container
-          await processContainerCreation(containerName, imageUsed);
-          return await Container.findOne({ containerName });
+          try {
+            await processContainerCreation(containerName, imageUsed);
+            console.log(`Container(${containerName}) started`);
+            try {
+              return await Container.findOne({ containerName });
+            } catch (error) {
+              logError(
+                `Error while returning updated stopped Container(${containerName}) inside valition function`,
+                error
+              );
+              return null;
+            }
+          } catch (error) {
+            logError(
+              `Error during creating the removed Container(${containerName} inside validating function`,
+              error
+            );
+            return null;
+          }
         } catch (error) {
           logError(
             `Error during creating the removed Container(${containerName}`,
@@ -228,7 +249,7 @@ export async function validateContainer(subDomain) {
 }
 
 export function startStoppedRemovedContainers() {
-  console.log("Starting stopped or removed containers");
+  console.log("Starting Stopped or Removed Containers...");
   Container.find({})
     .then((containers) => {
       for (const container of containers) {
@@ -239,21 +260,30 @@ export function startStoppedRemovedContainers() {
           .then((containerInfo) => {
             if (containerInfo && !containerInfo.State.Running) {
               // start the container
+              console.log(containerData);
               console.log(`Starting the stopped Container(${containerName})`);
-              containerData.start().then(() => {
-                console.log(`Container(${containerName}) started`);
-              });
+              containerData
+                .start()
+                .then(() => {
+                  console.log(`Container(${containerName}) started`);
+                })
             }
           })
-          .catch((error) => {
+          .catch(async (error) => {
             if (error.statusCode === 404) {
               // create that container
               console.log(
                 `No Container(${containerName}) found and Creating Container(${containerName})`
               );
-              processContainerCreation(containerName, imageUsed).then(() => {
+              try {
+                await processContainerCreation(containerName, imageUsed);
                 console.log(`Container(${containerName}) started`);
-              });
+              } catch (error) {
+                logError(
+                  `Error during creating the removed Container(${containerName} inside stopstart function`,
+                  error
+                );
+              }
             } else {
               logError(
                 `Error while inspecting Container(${containerName})`,
@@ -262,6 +292,7 @@ export function startStoppedRemovedContainers() {
             }
           });
       }
+      console.log("Starting Stopped or Removed Containers Completed");
     })
     .catch((error) => {
       logError("Error during Starting -->  Stopped/Removed Container", error);
@@ -269,7 +300,7 @@ export function startStoppedRemovedContainers() {
 }
 
 export const initializeDockerEventListener = () => {
-  console.log("Initializing docker event listener");
+  console.log("Initializing Docker Event Listener...");
   docker.getEvents((err, stream) => {
     if (err) {
       logError("Error getting Docker events", err);
@@ -309,16 +340,14 @@ export const initializeDockerEventListener = () => {
 
 // Function to initialize existing containers
 export const initializeExistingContainers = () => {
-  const networks = docker.getNetwork("custom-docker-reverse-proxy_proxied-net");
+  console.log("Initializing existing containers to DB...");
+  const networks = docker.getNetwork(PROXIED_SERVER_NETWORK_NAME);
   networks
     .inspect()
     .then((networkInfo) => {
       const containers = networkInfo.Containers;
       for (const [containerId, containerInfo] of Object.entries(containers)) {
-        if (
-          containerInfo.Name !==
-          "custom-docker-reverse-proxy-reverse-proxy-app-1"
-        ) {
+        if (containerInfo.Name !== REVERSE_PROXY_SERVER_NAME) {
           console.log(`Initializing Container(${containerInfo.Name}) into DB`);
           registerContainer(containerId)
             .then(() => {
@@ -338,7 +367,7 @@ export const initializeExistingContainers = () => {
     })
     .catch((error) => {
       logError(
-        "Error during initializing existing containers into DB --> NetWork(custom-docker-reverse-proxy_proxied-net) not Found",
+        `Error during initializing existing containers into DB --> NetWork(${PROXIED_SERVER_NETWORK_NAME}) not Found`,
         error
       );
     });
