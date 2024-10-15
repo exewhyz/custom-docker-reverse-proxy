@@ -1,6 +1,6 @@
 {
   "watch": ["."],
   "ext": "js,json",
-  "ignore": ["node_modules/", ".git", "Dockerfile*", "docker-compose.yml"],
+  "ignore": ["node_modules/", ".git",".gitignore", "Dockerfile*", "compose*.yml",".dockerignore","var/",".env.example"],
   "exec": "node server.js"
 }
